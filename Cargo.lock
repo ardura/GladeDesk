@@ -3,7 +3,7 @@
 version = 3
 
 [[package]]
-name = "Subhoofer"
+name = "GladeDesk"
 version = "2.0.0"
 dependencies = [
  "atomic_float",

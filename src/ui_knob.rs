@@ -72,6 +72,7 @@ pub struct ArcKnob<'a, P: Param> {
     line_width: f32,
     center_to_line_space: f32,
     hover_text: bool,
+    hover_text_content: String,
     label_text: String,
     outline: bool,
 }
@@ -99,6 +100,7 @@ impl<'a, P: Param> ArcKnob<'a, P> {
             line_width: 2.0,
             center_to_line_space: 0.0,
             hover_text: false,
+            hover_text_content: String::new(),
             label_text: String::new(),
             outline: false,
         }
@@ -112,6 +114,11 @@ impl<'a, P: Param> ArcKnob<'a, P> {
     // Specify showing value when mouse-over
     pub fn use_hover_text(&mut self, new_bool: bool) {
         self.hover_text = new_bool;
+    }
+
+    // Specify value when mouse-over
+    pub fn set_hover_text(&mut self, new_text: String) {
+        self.hover_text_content = new_text;
     }
 
     // Specify knob label
@@ -184,7 +191,7 @@ impl<'a, P: Param> ArcKnob<'a, P> {
 }
 
 impl<'a, P: Param> Widget for ArcKnob<'a, P> {
-    fn ui(self, ui: &mut Ui) -> Response {
+    fn ui(mut self, ui: &mut Ui) -> Response {
         // Turns into 5 on each side
         let padding = 10.0;
 
@@ -229,9 +236,12 @@ impl<'a, P: Param> Widget for ArcKnob<'a, P> {
 
             // Hover text of value
             if self.hover_text {
+                if self.hover_text_content.is_empty() {
+                    self.hover_text_content = self.slider_region.get_string();
+                }
                 ui.allocate_rect(
                     Rect::from_center_size(center, Vec2::new(self.radius*2.0, self.radius*2.0)), Sense::hover())
-                        .on_hover_text(self.slider_region.get_string());
+                        .on_hover_text(self.hover_text_content);
             }
 
             // Label text from response rect bound
