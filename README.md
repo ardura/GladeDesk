@@ -4,7 +4,8 @@ Custom Console Idea
 ## Description
 This is a more subtle plugin aimed at letting the user toy around with different values that create console emulations using math in the style of some of the older Airwindows plugins' code.
 As someone fascinated by consoles and old hardware this is something I really wanted to make to play around with, but am now sharing with you!
-![image](https://github.com/ardura/GladeDesk/assets/31751444/9a8423bc-ae29-4116-b913-834a7501f874)
+![image](https://github.com/ardura/GladeDesk/assets/31751444/1cf154af-91d3-48a2-bdea-ebb963bebd05)
+
 
 ### Glade Desk consists of a few parts
 - Input Gain
