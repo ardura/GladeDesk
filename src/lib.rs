@@ -3,7 +3,7 @@ mod ui_knob;
 mod db_meter;
 use atomic_float::AtomicF32;
 use nih_plug::{prelude::*};
-use nih_plug_egui::{create_egui_editor, egui::{self, Color32, Rect, Rounding, RichText, FontId, Pos2, Separator}, EguiState, widgets};
+use nih_plug_egui::{create_egui_editor, egui::{self, Color32, Rect, Rounding, RichText, FontId, Pos2}, EguiState, widgets};
 use std::{sync::{Arc}, ops::RangeInclusive, collections::VecDeque};
 
 /***************************************************************************
@@ -616,8 +616,10 @@ impl Plugin for Gain {
 
             // Calculate dry/wet mix
             let wet_gain: f32 = dry_wet;
-            processed_sample_l = (1.0 - wet_gain)*in_l + processed_sample_l * wet_gain;
-            processed_sample_r = (1.0 - wet_gain)*in_r + processed_sample_r * wet_gain;
+            //processed_sample_l = (1.0 - wet_gain)*in_l + processed_sample_l * wet_gain;
+            //processed_sample_r = (1.0 - wet_gain)*in_r + processed_sample_r * wet_gain;
+            processed_sample_l = in_l + processed_sample_l * wet_gain;
+            processed_sample_r = in_r + processed_sample_r * wet_gain;
 
             // get the output amplitude here
             processed_sample_l = processed_sample_l*output_gain;
