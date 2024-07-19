@@ -1,22 +1,25 @@
 #![allow(non_snake_case)]
-mod ui_knob;
 mod db_meter;
+mod ui_knob;
 use atomic_float::AtomicF32;
-use nih_plug::{prelude::*};
-use nih_plug_egui::{create_egui_editor, egui::{self, Color32, Rect, Rounding, RichText, FontId, Pos2}, EguiState, widgets};
-use std::{sync::{Arc}, ops::RangeInclusive, collections::VecDeque};
+use nih_plug::prelude::*;
+use nih_plug_egui::{
+    create_egui_editor,
+    egui::{self, Color32, FontId, Pos2, Rect, RichText, Rounding},
+    widgets, EguiState,
+};
+use std::{collections::VecDeque, ops::RangeInclusive, sync::Arc};
 
 /***************************************************************************
  * Glade Desk by Ardura
- * 
+ *
  * Build with: cargo xtask bundle GladeDesk --profile <release or profiling>
  * *************************************************************************/
 
- // GUI Colors
-const A_KNOB_OUTSIDE_COLOR: Color32 = Color32::from_rgb(252,163,17);
-const A_BACKGROUND_COLOR: Color32 = Color32::from_rgb(20,33,61);
-const A_KNOB_INSIDE_COLOR: Color32 = Color32::from_rgb(229,229,229);
-const A_KNOB_OUTSIDE_COLOR2: Color32 = Color32::from_rgb(255,255,255);
+// GUI Colors
+const A_KNOB_OUTSIDE_COLOR: Color32 = Color32::from_rgb(252, 163, 17);
+const A_BACKGROUND_COLOR: Color32 = Color32::from_rgb(20, 33, 61);
+const A_KNOB_INSIDE_COLOR: Color32 = Color32::from_rgb(100, 100, 100);
 
 // Plugin sizing
 const WIDTH: u32 = 532;
@@ -25,8 +28,8 @@ const HEIGHT: u32 = 400;
 /// The time it takes for the peak meter to decay by 12 dB after switching to complete silence.
 const PEAK_METER_DECAY_MS: f64 = 100.0;
 
-pub struct Gain {
-    params: Arc<GainParams>,
+pub struct GladeDesk {
+    params: Arc<GladeDeskParams>,
 
     // normalize the peak meter's response based on the sample rate with this
     out_meter_decay_weight: f32,
@@ -41,7 +44,7 @@ pub struct Gain {
 }
 
 #[derive(Params)]
-struct GainParams {
+struct GladeDeskParams {
     /// The editor state, saved together with the parameter state so the custom scaling can be
     /// restored.
     #[persist = "editor-state"]
@@ -111,20 +114,20 @@ struct GainParams {
     pub dry_wet: FloatParam,
 }
 
-impl Default for Gain {
+impl Default for GladeDesk {
     fn default() -> Self {
         Self {
-            params: Arc::new(GainParams::default()),
+            params: Arc::new(GladeDeskParams::default()),
             out_meter_decay_weight: 1.0,
             out_meter: Arc::new(AtomicF32::new(util::MINUS_INFINITY_DB)),
             in_meter: Arc::new(AtomicF32::new(util::MINUS_INFINITY_DB)),
-            left_vec: VecDeque::from(vec![0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]),
-            right_vec: VecDeque::from(vec![0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]),
+            left_vec: VecDeque::from(vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+            right_vec: VecDeque::from(vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
         }
     }
 }
 
-impl Default for GainParams {
+impl Default for GladeDeskParams {
     fn default() -> Self {
         Self {
             editor_state: EguiState::from_size(WIDTH, HEIGHT),
@@ -145,23 +148,19 @@ impl Default for GainParams {
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
 
             // push_amount Parameter
-            push_amount: FloatParam::new(
-                "Push",
-                0.0,
-                FloatRange::Linear {
-                    min: 0.0,
-                    max: 1.0,
-                },
-            )
-            .with_smoother(SmoothingStyle::Linear(30.0))
-            .with_unit("% Pushed")
-            .with_value_to_string(formatters::v2s_f32_percentage(2)),
+            push_amount: FloatParam::new("Push", 0.0, FloatRange::Linear { min: 0.0, max: 1.0 })
+                .with_smoother(SmoothingStyle::Linear(30.0))
+                .with_unit("% Pushed")
+                .with_value_to_string(formatters::v2s_f32_percentage(2)),
 
             // Coeff parameter 1
             slider_1_coeff: FloatParam::new(
                 "1",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -170,7 +169,10 @@ impl Default for GainParams {
             slider_1_skew: FloatParam::new(
                 "",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -179,7 +181,10 @@ impl Default for GainParams {
             slider_2_coeff: FloatParam::new(
                 "2",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -188,7 +193,10 @@ impl Default for GainParams {
             slider_2_skew: FloatParam::new(
                 "",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -197,7 +205,10 @@ impl Default for GainParams {
             slider_3_coeff: FloatParam::new(
                 "3",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -206,7 +217,10 @@ impl Default for GainParams {
             slider_3_skew: FloatParam::new(
                 "",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -215,7 +229,10 @@ impl Default for GainParams {
             slider_4_coeff: FloatParam::new(
                 "4",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -224,7 +241,10 @@ impl Default for GainParams {
             slider_4_skew: FloatParam::new(
                 "",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -233,7 +253,10 @@ impl Default for GainParams {
             slider_5_coeff: FloatParam::new(
                 "5",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -242,7 +265,10 @@ impl Default for GainParams {
             slider_5_skew: FloatParam::new(
                 "",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -251,7 +277,10 @@ impl Default for GainParams {
             slider_6_coeff: FloatParam::new(
                 "6",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -260,7 +289,10 @@ impl Default for GainParams {
             slider_6_skew: FloatParam::new(
                 "",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -269,7 +301,10 @@ impl Default for GainParams {
             slider_7_coeff: FloatParam::new(
                 "7",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -278,7 +313,10 @@ impl Default for GainParams {
             slider_7_skew: FloatParam::new(
                 "",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -287,7 +325,10 @@ impl Default for GainParams {
             slider_8_coeff: FloatParam::new(
                 "8",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -296,7 +337,10 @@ impl Default for GainParams {
             slider_8_skew: FloatParam::new(
                 "",
                 0.0,
-                FloatRange::Linear { min: -0.5, max: 0.5 },
+                FloatRange::Linear {
+                    min: -0.5,
+                    max: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_value_to_string(formatters::v2s_f32_rounded(6)),
@@ -305,7 +349,11 @@ impl Default for GainParams {
             multiplier: FloatParam::new(
                 "Multiplier",
                 1.0,
-                FloatRange::Skewed { min: 1.0, max: 10.0, factor: 0.5 },
+                FloatRange::Skewed {
+                    min: 1.0,
+                    max: 10.0,
+                    factor: 0.5,
+                },
             )
             .with_smoother(SmoothingStyle::Linear(30.0))
             .with_unit(" x Mult")
@@ -327,23 +375,16 @@ impl Default for GainParams {
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
 
             // Dry/Wet parameter
-            dry_wet: FloatParam::new(
-                "Dry/Wet",
-                1.0,
-                FloatRange::Linear {
-                    min: 0.0,
-                    max: 1.0,
-                },
-            )
-            .with_smoother(SmoothingStyle::Linear(50.0))
-            .with_unit("% Wet")
-            .with_value_to_string(formatters::v2s_f32_percentage(2))
-            .with_string_to_value(formatters::s2v_f32_percentage()),
+            dry_wet: FloatParam::new("Dry/Wet", 1.0, FloatRange::Linear { min: 0.0, max: 1.0 })
+                .with_smoother(SmoothingStyle::Linear(50.0))
+                .with_unit("% Wet")
+                .with_value_to_string(formatters::v2s_f32_percentage(2))
+                .with_string_to_value(formatters::s2v_f32_percentage()),
         }
     }
 }
 
-impl Plugin for Gain {
+impl Plugin for GladeDesk {
     const NAME: &'static str = "Glade Desk";
     const VENDOR: &'static str = "Ardura";
     const URL: &'static str = "https://github.com/ardura";
@@ -353,8 +394,16 @@ impl Plugin for Gain {
 
     // This looks like it's flexible for running the plugin in mono or stereo
     const AUDIO_IO_LAYOUTS: &'static [AudioIOLayout] = &[
-        AudioIOLayout {main_input_channels: NonZeroU32::new(2), main_output_channels: NonZeroU32::new(2), ..AudioIOLayout::const_default()},
-        AudioIOLayout {main_input_channels: NonZeroU32::new(1), main_output_channels: NonZeroU32::new(1), ..AudioIOLayout::const_default()},
+        AudioIOLayout {
+            main_input_channels: NonZeroU32::new(2),
+            main_output_channels: NonZeroU32::new(2),
+            ..AudioIOLayout::const_default()
+        },
+        AudioIOLayout {
+            main_input_channels: NonZeroU32::new(1),
+            main_output_channels: NonZeroU32::new(1),
+            ..AudioIOLayout::const_default()
+        },
     ];
 
     const SAMPLE_ACCURATE_AUTOMATION: bool = true;
@@ -366,7 +415,7 @@ impl Plugin for Gain {
         self.params.clone()
     }
 
-    fn editor(self: &Gain, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
+    fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
         let params = self.params.clone();
         let in_meter = self.in_meter.clone();
         let out_meter = self.out_meter.clone();
@@ -375,141 +424,243 @@ impl Plugin for Gain {
             (),
             |_, _| {},
             move |egui_ctx, setter, _state| {
-                egui::CentralPanel::default()
-                    .show(egui_ctx, |ui| {
-                        // Change colors - there's probably a better way to do this
-                        let style_var = ui.style_mut().clone();
+                egui::CentralPanel::default().show(egui_ctx, |ui| {
+                    // Change colors - there's probably a better way to do this
+                    let style_var = ui.style_mut().clone();
 
-                        // Trying to draw background as rect
-                        ui.painter().rect_filled(
-                            Rect::from_x_y_ranges(
-                                RangeInclusive::new(0.0, WIDTH as f32), 
-                                RangeInclusive::new(0.0, HEIGHT as f32)), 
-                            Rounding::from(16.0), A_BACKGROUND_COLOR);
+                    // Trying to draw background as rect
+                    ui.painter().rect_filled(
+                        Rect::from_x_y_ranges(
+                            RangeInclusive::new(0.0, WIDTH as f32),
+                            RangeInclusive::new(0.0, HEIGHT as f32),
+                        ),
+                        Rounding::from(16.0),
+                        A_BACKGROUND_COLOR,
+                    );
 
-                        // Screws for that vintage look
-                        let screw_space = 10.0;
-                        ui.painter().circle_filled(Pos2::new(screw_space,screw_space), 4.0, Color32::DARK_GRAY);
-                        ui.painter().circle_filled(Pos2::new(screw_space,HEIGHT as f32 - screw_space), 4.0, Color32::DARK_GRAY);
-                        ui.painter().circle_filled(Pos2::new(WIDTH as f32 - screw_space,screw_space), 4.0, Color32::DARK_GRAY);
-                        ui.painter().circle_filled(Pos2::new(WIDTH as f32 - screw_space,HEIGHT as f32 - screw_space), 4.0, Color32::DARK_GRAY);
+                    // Screws for that vintage look
+                    let screw_space = 10.0;
+                    ui.painter().circle_filled(
+                        Pos2::new(screw_space, screw_space),
+                        4.0,
+                        Color32::DARK_GRAY,
+                    );
+                    ui.painter().circle_filled(
+                        Pos2::new(WIDTH as f32 - screw_space, screw_space),
+                        4.0,
+                        Color32::DARK_GRAY,
+                    );
 
-                        ui.set_style(style_var);
+                    ui.set_style(style_var);
 
-                        // GUI Structure
+                    // GUI Structure
+                    ui.vertical(|ui| {
+                        // Spacing :)
+                        ui.label(
+                            RichText::new("    Glade Desk")
+                                .font(FontId::proportional(14.0))
+                                .color(A_KNOB_OUTSIDE_COLOR),
+                        )
+                        .on_hover_text("by Ardura!");
+
+                        // Peak Meters
+                        let in_meter =
+                            util::gain_to_db(in_meter.load(std::sync::atomic::Ordering::Relaxed));
+                        let in_meter_text = if in_meter > util::MINUS_INFINITY_DB {
+                            format!("{in_meter:.1} dBFS Input")
+                        } else {
+                            String::from("-inf dBFS Input")
+                        };
+                        let in_meter_normalized = (in_meter + 60.0) / 60.0;
+                        ui.allocate_space(egui::Vec2::splat(2.0));
+                        let mut in_meter_obj =
+                            db_meter::DBMeter::new(in_meter_normalized).text(in_meter_text);
+                        in_meter_obj.set_background_color(A_KNOB_OUTSIDE_COLOR);
+                        in_meter_obj.set_bar_color(A_KNOB_INSIDE_COLOR);
+                        in_meter_obj.set_border_color(Color32::BLACK);
+                        ui.add(in_meter_obj);
+
+                        let out_meter =
+                            util::gain_to_db(out_meter.load(std::sync::atomic::Ordering::Relaxed));
+                        let out_meter_text = if out_meter > util::MINUS_INFINITY_DB {
+                            format!("{out_meter:.1} dBFS Output")
+                        } else {
+                            String::from("-inf dBFS Output")
+                        };
+                        let out_meter_normalized = (out_meter + 60.0) / 60.0;
+                        ui.allocate_space(egui::Vec2::splat(2.0));
+                        let mut out_meter_obj =
+                            db_meter::DBMeter::new(out_meter_normalized).text(out_meter_text);
+                        out_meter_obj.set_background_color(A_KNOB_OUTSIDE_COLOR);
+                        out_meter_obj.set_bar_color(A_KNOB_INSIDE_COLOR);
+                        out_meter_obj.set_border_color(Color32::BLACK);
+                        ui.add(out_meter_obj);
+
+                        // Knobs and labels
+                        ui.horizontal(|ui| {
+                            let knob_size = 37.0;
+                            let gain_knob = ui_knob::ArcKnob::for_param(
+                                &params.free_gain,
+                                setter,
+                                knob_size,
+                                ui_knob::KnobLayout::Vertical,
+                            )
+                                .preset_style(ui_knob::KnobStyle::Preset1)
+                                .set_text_size(11.0)
+                                .set_fill_color(A_KNOB_INSIDE_COLOR)
+                                .set_line_color(A_KNOB_OUTSIDE_COLOR);
+                            ui.add(gain_knob);
+
+                            let push_knob = ui_knob::ArcKnob::for_param(
+                                &params.push_amount,
+                                setter,
+                                knob_size,
+                                ui_knob::KnobLayout::Vertical,
+                            )
+                                .preset_style(ui_knob::KnobStyle::Preset1)
+                                .set_text_size(11.0)
+                                .set_fill_color(A_KNOB_INSIDE_COLOR)
+                                .set_line_color(A_KNOB_OUTSIDE_COLOR);
+                            ui.add(push_knob);
+
+                            let multiplier_knob = ui_knob::ArcKnob::for_param(
+                                &params.multiplier,
+                                setter,
+                                knob_size,
+                                ui_knob::KnobLayout::Vertical,
+                            )
+                                .preset_style(ui_knob::KnobStyle::Preset1)
+                                .set_text_size(11.0)
+                                .set_fill_color(A_KNOB_INSIDE_COLOR)
+                                .set_line_color(A_KNOB_OUTSIDE_COLOR);
+                            ui.add(multiplier_knob);
+
+                            let output_knob = ui_knob::ArcKnob::for_param(
+                                &params.output_gain,
+                                setter,
+                                knob_size,
+                                ui_knob::KnobLayout::Vertical,
+                            )
+                                .preset_style(ui_knob::KnobStyle::Preset1)
+                                .set_text_size(11.0)
+                                .set_fill_color(A_KNOB_INSIDE_COLOR)
+                                .set_line_color(A_KNOB_OUTSIDE_COLOR);
+                            ui.add(output_knob);
+
+                            let dry_wet_knob = ui_knob::ArcKnob::for_param(
+                                &params.dry_wet,
+                                setter,
+                                knob_size,
+                                ui_knob::KnobLayout::Vertical,
+                            )
+                                .preset_style(ui_knob::KnobStyle::Preset1)
+                                .set_text_size(11.0)
+                                .set_fill_color(A_KNOB_INSIDE_COLOR)
+                                .set_line_color(A_KNOB_OUTSIDE_COLOR);
+                            ui.add(dry_wet_knob);
+                        });
+
+                        //sliders
                         ui.vertical(|ui| {
-                            // Spacing :)
-                            ui.label(RichText::new("    Glade Desk").font(FontId::proportional(14.0)).color(A_KNOB_OUTSIDE_COLOR)).on_hover_text("by Ardura!");
-
-                            // Peak Meters
-                            let in_meter = util::gain_to_db(in_meter.load(std::sync::atomic::Ordering::Relaxed));
-                            let in_meter_text = if in_meter > util::MINUS_INFINITY_DB {
-                                format!("{in_meter:.1} dBFS Input")
-                            } else {
-                                String::from("-inf dBFS Input")
-                            };
-                            let in_meter_normalized = (in_meter + 60.0) / 60.0;
-                            ui.allocate_space(egui::Vec2::splat(2.0));
-                            let mut in_meter_obj = db_meter::DBMeter::new(in_meter_normalized).text(in_meter_text);
-                            in_meter_obj.set_background_color(A_KNOB_OUTSIDE_COLOR);
-                            in_meter_obj.set_bar_color(A_KNOB_INSIDE_COLOR);
-                            in_meter_obj.set_border_color(Color32::BLACK);
-                            ui.add(in_meter_obj);
-
-                            let out_meter = util::gain_to_db(out_meter.load(std::sync::atomic::Ordering::Relaxed));
-                            let out_meter_text = if out_meter > util::MINUS_INFINITY_DB {
-                                format!("{out_meter:.1} dBFS Output")
-                            } else {
-                                String::from("-inf dBFS Output")
-                            };
-                            let out_meter_normalized = (out_meter + 60.0) / 60.0;
-                            ui.allocate_space(egui::Vec2::splat(2.0));
-                            let mut out_meter_obj = db_meter::DBMeter::new(out_meter_normalized).text(out_meter_text);
-                            out_meter_obj.set_background_color(A_KNOB_OUTSIDE_COLOR);
-                            out_meter_obj.set_bar_color(A_KNOB_INSIDE_COLOR);
-                            out_meter_obj.set_border_color(Color32::BLACK);
-                            ui.add(out_meter_obj);
-
-                            // Knobs and labels
                             ui.horizontal(|ui| {
-                                let knob_size = 40.0;
-                                let mut gain_knob = ui_knob::ArcKnob::for_param(&params.free_gain, setter, knob_size);
-                                gain_knob.preset_style(ui_knob::KnobStyle::SmallTogether);
-                                gain_knob.set_fill_color(A_KNOB_OUTSIDE_COLOR2);
-                                gain_knob.set_line_color(A_KNOB_OUTSIDE_COLOR);
-                                ui.add(gain_knob);
-
-                                let mut push_knob = ui_knob::ArcKnob::for_param(&params.push_amount, setter, knob_size);
-                                push_knob.preset_style(ui_knob::KnobStyle::SmallTogether);
-                                push_knob.set_fill_color(A_KNOB_OUTSIDE_COLOR2);
-                                push_knob.set_line_color(A_KNOB_OUTSIDE_COLOR);
-                                ui.add(push_knob);
-
-                                let mut multiplier_knob = ui_knob::ArcKnob::for_param(&params.multiplier, setter, knob_size);
-                                multiplier_knob.preset_style(ui_knob::KnobStyle::SmallTogether);
-                                multiplier_knob.set_fill_color(A_KNOB_OUTSIDE_COLOR2);
-                                multiplier_knob.set_line_color(A_KNOB_OUTSIDE_COLOR);
-                                ui.add(multiplier_knob);
-
-                                let mut output_knob = ui_knob::ArcKnob::for_param(&params.output_gain, setter, knob_size);
-                                output_knob.preset_style(ui_knob::KnobStyle::SmallTogether);
-                                output_knob.set_fill_color(A_KNOB_OUTSIDE_COLOR2);
-                                output_knob.set_line_color(A_KNOB_OUTSIDE_COLOR);
-                                ui.add(output_knob);
-                                                                let mut dry_wet_knob = ui_knob::ArcKnob::for_param(&params.dry_wet, setter, knob_size);
-                                dry_wet_knob.preset_style(ui_knob::KnobStyle::SmallTogether);
-                                dry_wet_knob.set_fill_color(A_KNOB_OUTSIDE_COLOR2);
-                                dry_wet_knob.set_line_color(A_KNOB_OUTSIDE_COLOR);
-                                ui.add(dry_wet_knob);
+                                ui.label(
+                                    RichText::new("Coefficient Value")
+                                        .font(FontId::proportional(14.0))
+                                        .color(A_KNOB_OUTSIDE_COLOR),
+                                );
+                                ui.add_space(160.0);
+                                ui.label(
+                                    RichText::new("Skew Value")
+                                        .font(FontId::proportional(14.0))
+                                        .color(A_KNOB_OUTSIDE_COLOR),
+                                );
                             });
-                            
-                            //sliders
-                            ui.vertical(|ui| {
-                                ui.horizontal(|ui|{
-                                    ui.label(RichText::new("Coefficient Value").font(FontId::proportional(14.0)).color(A_KNOB_OUTSIDE_COLOR));
-                                    ui.add_space(160.0);
-                                    ui.label(RichText::new("Skew Value").font(FontId::proportional(14.0)).color(A_KNOB_OUTSIDE_COLOR));
-                                });
-                                ui.horizontal(|ui|{
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_1_coeff, setter).with_width(180.0));
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_1_skew, setter).with_width(180.0));
-                                });
-                                ui.horizontal(|ui|{
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_2_coeff, setter).with_width(180.0));
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_2_skew, setter).with_width(180.0));
-                                });
-                                ui.horizontal(|ui|{
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_3_coeff, setter).with_width(180.0));
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_3_skew, setter).with_width(180.0));
-                                });
-                                ui.horizontal(|ui|{
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_4_coeff, setter).with_width(180.0));
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_4_skew, setter).with_width(180.0));
-                                });
-                                ui.horizontal(|ui|{
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_5_coeff, setter).with_width(180.0));
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_5_skew, setter).with_width(180.0));
-                                });
-                                ui.horizontal(|ui|{
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_6_coeff, setter).with_width(180.0));
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_6_skew, setter).with_width(180.0));
-                                });
-                                ui.horizontal(|ui|{
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_7_coeff, setter).with_width(180.0));
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_7_skew, setter).with_width(180.0));
-                                });
-                                ui.horizontal(|ui|{
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_8_coeff, setter).with_width(180.0));
-                                    ui.add(widgets::ParamSlider::for_param(&params.slider_8_skew, setter).with_width(180.0));
-                                });
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_1_coeff, setter)
+                                        .with_width(180.0),
+                                );
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_1_skew, setter)
+                                        .with_width(180.0),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_2_coeff, setter)
+                                        .with_width(180.0),
+                                );
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_2_skew, setter)
+                                        .with_width(180.0),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_3_coeff, setter)
+                                        .with_width(180.0),
+                                );
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_3_skew, setter)
+                                        .with_width(180.0),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_4_coeff, setter)
+                                        .with_width(180.0),
+                                );
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_4_skew, setter)
+                                        .with_width(180.0),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_5_coeff, setter)
+                                        .with_width(180.0),
+                                );
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_5_skew, setter)
+                                        .with_width(180.0),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_6_coeff, setter)
+                                        .with_width(180.0),
+                                );
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_6_skew, setter)
+                                        .with_width(180.0),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_7_coeff, setter)
+                                        .with_width(180.0),
+                                );
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_7_skew, setter)
+                                        .with_width(180.0),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_8_coeff, setter)
+                                        .with_width(180.0),
+                                );
+                                ui.add(
+                                    widgets::ParamSlider::for_param(&params.slider_8_skew, setter)
+                                        .with_width(180.0),
+                                );
                             });
                         });
                     });
-                }
-            )
+                });
+            },
+        )
     }
-
-    
 
     fn initialize(
         &mut self,
@@ -518,7 +669,9 @@ impl Plugin for Gain {
         _context: &mut impl InitContext<Self>,
     ) -> bool {
         // After `PEAK_METER_DECAY_MS` milliseconds of pure silence, the peak meter's value should have dropped by 12 dB
-        self.out_meter_decay_weight = 0.25f64.powf((buffer_config.sample_rate as f64 * PEAK_METER_DECAY_MS / 1000.0).recip()) as f32;
+        self.out_meter_decay_weight = 0.25f64
+            .powf((buffer_config.sample_rate as f64 * PEAK_METER_DECAY_MS / 1000.0).recip())
+            as f32;
 
         true
     }
@@ -572,12 +725,16 @@ impl Plugin for Gain {
             // Perform processing on the sample
 
             // Normalize really small values
-            if in_l.abs() < 1.18e-23 { in_l = 0.1 * 1.18e-17; }
-            if in_r.abs() < 1.18e-23 { in_r = 0.1 * 1.18e-17; }
+            if in_l.abs() < 1.18e-23 {
+                in_l = 0.1 * 1.18e-17;
+            }
+            if in_r.abs() < 1.18e-23 {
+                in_r = 0.1 * 1.18e-17;
+            }
 
             // Calculate our sin 'warmed' sample
-            processed_sample_l = (1.0 - push_amount)*in_l + push_amount*((in_l*1.2).sin());
-            processed_sample_r = (1.0 - push_amount)*in_r + push_amount*((in_r*1.2).sin());
+            processed_sample_l = (1.0 - push_amount) * in_l + push_amount * ((in_l * 1.2).sin());
+            processed_sample_r = (1.0 - push_amount) * in_r + push_amount * ((in_r * 1.2).sin());
 
             // Shift the buffer arrays
             self.left_vec.push_front(processed_sample_l);
@@ -590,28 +747,60 @@ impl Plugin for Gain {
 
             // Sequential process like the Airwindows Console emulations
             if true {
-                temp_l += self.left_vec[0] * (slider_1_coeff*multiplier + slider_1_skew*multiplier*self.left_vec[0].abs());
-                temp_l += self.left_vec[1] * (slider_2_coeff*multiplier + slider_2_skew*multiplier*self.left_vec[1].abs());
-                temp_l -= self.left_vec[2] * (slider_3_coeff*multiplier + slider_3_skew*multiplier*self.left_vec[2].abs());
-                temp_l += self.left_vec[3] * (slider_4_coeff*multiplier + slider_4_skew*multiplier*self.left_vec[3].abs());
-                temp_l -= self.left_vec[4] * (slider_5_coeff*multiplier + slider_5_skew*multiplier*self.left_vec[4].abs());
-                temp_l += self.left_vec[5] * (slider_6_coeff*multiplier + slider_6_skew*multiplier*self.left_vec[5].abs());
-                temp_l -= self.left_vec[6] * (slider_7_coeff*multiplier + slider_7_skew*multiplier*self.left_vec[6].abs());
-                temp_l += self.left_vec[7] * (slider_8_coeff*multiplier + slider_8_skew*multiplier*self.left_vec[7].abs());
+                temp_l += self.left_vec[0]
+                    * (slider_1_coeff * multiplier
+                        + slider_1_skew * multiplier * self.left_vec[0].abs());
+                temp_l += self.left_vec[1]
+                    * (slider_2_coeff * multiplier
+                        + slider_2_skew * multiplier * self.left_vec[1].abs());
+                temp_l -= self.left_vec[2]
+                    * (slider_3_coeff * multiplier
+                        + slider_3_skew * multiplier * self.left_vec[2].abs());
+                temp_l += self.left_vec[3]
+                    * (slider_4_coeff * multiplier
+                        + slider_4_skew * multiplier * self.left_vec[3].abs());
+                temp_l -= self.left_vec[4]
+                    * (slider_5_coeff * multiplier
+                        + slider_5_skew * multiplier * self.left_vec[4].abs());
+                temp_l += self.left_vec[5]
+                    * (slider_6_coeff * multiplier
+                        + slider_6_skew * multiplier * self.left_vec[5].abs());
+                temp_l -= self.left_vec[6]
+                    * (slider_7_coeff * multiplier
+                        + slider_7_skew * multiplier * self.left_vec[6].abs());
+                temp_l += self.left_vec[7]
+                    * (slider_8_coeff * multiplier
+                        + slider_8_skew * multiplier * self.left_vec[7].abs());
 
-                temp_r += self.right_vec[0] * (slider_1_coeff*multiplier + slider_1_skew*multiplier*self.right_vec[0].abs());
-                temp_r += self.right_vec[1] * (slider_2_coeff*multiplier + slider_2_skew*multiplier*self.right_vec[1].abs());
-                temp_r -= self.right_vec[2] * (slider_3_coeff*multiplier + slider_3_skew*multiplier*self.right_vec[2].abs());
-                temp_r += self.right_vec[3] * (slider_4_coeff*multiplier + slider_4_skew*multiplier*self.right_vec[3].abs());
-                temp_r -= self.right_vec[4] * (slider_5_coeff*multiplier + slider_5_skew*multiplier*self.right_vec[4].abs());
-                temp_r += self.right_vec[5] * (slider_6_coeff*multiplier + slider_6_skew*multiplier*self.right_vec[5].abs());
-                temp_r -= self.right_vec[6] * (slider_7_coeff*multiplier + slider_7_skew*multiplier*self.right_vec[6].abs());
-                temp_r += self.right_vec[7] * (slider_8_coeff*multiplier + slider_8_skew*multiplier*self.right_vec[7].abs());
+                temp_r += self.right_vec[0]
+                    * (slider_1_coeff * multiplier
+                        + slider_1_skew * multiplier * self.right_vec[0].abs());
+                temp_r += self.right_vec[1]
+                    * (slider_2_coeff * multiplier
+                        + slider_2_skew * multiplier * self.right_vec[1].abs());
+                temp_r -= self.right_vec[2]
+                    * (slider_3_coeff * multiplier
+                        + slider_3_skew * multiplier * self.right_vec[2].abs());
+                temp_r += self.right_vec[3]
+                    * (slider_4_coeff * multiplier
+                        + slider_4_skew * multiplier * self.right_vec[3].abs());
+                temp_r -= self.right_vec[4]
+                    * (slider_5_coeff * multiplier
+                        + slider_5_skew * multiplier * self.right_vec[4].abs());
+                temp_r += self.right_vec[5]
+                    * (slider_6_coeff * multiplier
+                        + slider_6_skew * multiplier * self.right_vec[5].abs());
+                temp_r -= self.right_vec[6]
+                    * (slider_7_coeff * multiplier
+                        + slider_7_skew * multiplier * self.right_vec[6].abs());
+                temp_r += self.right_vec[7]
+                    * (slider_8_coeff * multiplier
+                        + slider_8_skew * multiplier * self.right_vec[7].abs());
             }
-            
+
             processed_sample_l = temp_l;
             processed_sample_r = temp_r;
-            
+
             ///////////////////////////////////////////////////////////////////////
 
             // Calculate dry/wet mix
@@ -622,8 +811,8 @@ impl Plugin for Gain {
             processed_sample_r = in_r + processed_sample_r * wet_gain;
 
             // get the output amplitude here
-            processed_sample_l = processed_sample_l*output_gain;
-            processed_sample_r = processed_sample_r*output_gain;
+            processed_sample_l = processed_sample_l * output_gain;
+            processed_sample_r = processed_sample_r * output_gain;
             out_amplitude += processed_sample_l + processed_sample_r;
 
             // Assign back so we can output our processed sounds
@@ -635,14 +824,26 @@ impl Plugin for Gain {
                 // Input gain meter
                 in_amplitude = (in_amplitude / num_samples as f32).abs();
                 let current_in_meter = self.in_meter.load(std::sync::atomic::Ordering::Relaxed);
-                let new_in_meter = if in_amplitude > current_in_meter {in_amplitude} else {current_in_meter * self.out_meter_decay_weight + in_amplitude * (1.0 - self.out_meter_decay_weight)};
-                self.in_meter.store(new_in_meter, std::sync::atomic::Ordering::Relaxed);
+                let new_in_meter = if in_amplitude > current_in_meter {
+                    in_amplitude
+                } else {
+                    current_in_meter * self.out_meter_decay_weight
+                        + in_amplitude * (1.0 - self.out_meter_decay_weight)
+                };
+                self.in_meter
+                    .store(new_in_meter, std::sync::atomic::Ordering::Relaxed);
 
                 // Output gain meter
                 out_amplitude = (out_amplitude / num_samples as f32).abs();
                 let current_out_meter = self.out_meter.load(std::sync::atomic::Ordering::Relaxed);
-                let new_out_meter = if out_amplitude > current_out_meter {out_amplitude} else {current_out_meter * self.out_meter_decay_weight + out_amplitude * (1.0 - self.out_meter_decay_weight)};
-                self.out_meter.store(new_out_meter, std::sync::atomic::Ordering::Relaxed);
+                let new_out_meter = if out_amplitude > current_out_meter {
+                    out_amplitude
+                } else {
+                    current_out_meter * self.out_meter_decay_weight
+                        + out_amplitude * (1.0 - self.out_meter_decay_weight)
+                };
+                self.out_meter
+                    .store(new_out_meter, std::sync::atomic::Ordering::Relaxed);
             }
         }
 
@@ -655,7 +856,7 @@ impl Plugin for Gain {
 
     const HARD_REALTIME_ONLY: bool = false;
 
-    fn task_executor(self: &Gain) -> TaskExecutor<Self> {
+    fn task_executor(&mut self) -> TaskExecutor<Self> {
         // In the default implementation we can simply ignore the value
         Box::new(|_| ())
     }
@@ -667,7 +868,7 @@ impl Plugin for Gain {
     fn deactivate(&mut self) {}
 }
 
-impl ClapPlugin for Gain {
+impl ClapPlugin for GladeDesk {
     const CLAP_ID: &'static str = "com.ardura.gladedesk";
     const CLAP_DESCRIPTION: Option<&'static str> = Some("Custom Console Idea");
     const CLAP_MANUAL_URL: Option<&'static str> = Some(Self::URL);
@@ -680,11 +881,11 @@ impl ClapPlugin for Gain {
     ];
 }
 
-impl Vst3Plugin for Gain {
+impl Vst3Plugin for GladeDesk {
     const VST3_CLASS_ID: [u8; 16] = *b"GladeDeskArduraA";
     const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] =
         &[Vst3SubCategory::Fx, Vst3SubCategory::Distortion];
 }
 
-nih_export_clap!(Gain);
-nih_export_vst3!(Gain);
+nih_export_clap!(GladeDesk);
+nih_export_vst3!(GladeDesk);

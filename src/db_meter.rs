@@ -1,7 +1,10 @@
 // db_meter.rs - Ardura 2023
 // A decibel meter akin to Vizia's nice one in nih-plug
 
-use nih_plug_egui::egui::{Ui, Widget, Stroke, Color32, WidgetText, Response, vec2, Sense, NumExt, Rect, lerp, Shape, Pos2, Vec2, TextStyle};
+use nih_plug_egui::egui::{
+    lerp, vec2, Align2, Color32, FontId, NumExt, Pos2, Rect, Response, Sense, Shape, Stroke,
+    TextStyle, Ui, Widget, WidgetText,
+};
 
 // TODO - let percentage work?
 #[allow(dead_code)]
@@ -71,16 +74,17 @@ impl Widget for DBMeter {
             level,
             desired_width,
             text,
-            animate, 
-            border_color, 
-            bar_color, 
-            background_color } = self;
+            animate,
+            border_color,
+            bar_color,
+            background_color,
+        } = self;
 
         let animate = animate && level < 1.0;
 
         let desired_width =
             desired_width.unwrap_or_else(|| ui.available_size_before_wrap().x.at_least(96.0));
-        let height = ui.spacing().interact_size.y;
+        let height = ui.spacing().interact_size.y * 0.75;
         let (outer_rect, response) =
             ui.allocate_exact_size(vec2(desired_width, height), Sense::hover());
 
@@ -97,7 +101,7 @@ impl Widget for DBMeter {
                 outer_rect,
                 rounding,
                 self.background_color,
-                Stroke::new(1.0,self.border_color),
+                Stroke::new(1.0, self.border_color),
             );
             let inner_rect = Rect::from_min_size(
                 outer_rect.min,
@@ -110,14 +114,19 @@ impl Widget for DBMeter {
             ui.painter().rect(
                 inner_rect,
                 rounding,
-                if self.level < 1.0 {self.bar_color} else {Color32::RED},
-                Stroke::none(),
+                if self.level < 1.0 {
+                    self.bar_color
+                } else {
+                    Color32::RED
+                },
+                Stroke::new(0.0, Color32::TRANSPARENT),
             );
 
             if animate {
                 let n_points = 20;
-                let start_angle = ui.input().time * std::f64::consts::TAU;
-                let end_angle = start_angle + 240f64.to_radians() * ui.input().time.sin();
+                let t = ui.input(|i| i.time);
+                let start_angle = t * std::f64::consts::TAU;
+                let end_angle = start_angle + 240f64.to_radians() * t.sin();
                 let circle_radius = rounding - 2.0;
                 let points: Vec<Pos2> = (0..n_points)
                     .map(|i| {
@@ -128,39 +137,38 @@ impl Widget for DBMeter {
                             + vec2(-rounding, 0.0)
                     })
                     .collect();
-                ui.painter().add(Shape::line(
-                    points,
-                    Stroke::new(2.0, self.border_color),
-                ));
+                ui.painter()
+                    .add(Shape::line(points, Stroke::new(2.0, self.border_color)));
             }
 
             // Markers
-            let marker_spacing = outer_rect.width()/12.0;
-            let points_x = (
-                outer_rect.left_bottom().x as i32..=outer_rect.right_bottom().x as i32).step_by(marker_spacing as usize);
+            let marker_spacing = outer_rect.width() / 12.0;
+            let points_x = (outer_rect.left_bottom().x as i32..=outer_rect.right_bottom().x as i32)
+                .step_by(marker_spacing as usize);
 
-            for x in points_x
-            {
-                let points: Vec<Pos2> = vec![Pos2::new(x as f32,outer_rect.left_bottom().y),Pos2::new(x as f32,outer_rect.left_bottom().y-10.0)];
-                ui.painter().add(Shape::line(points,Stroke::new(1.0, self.border_color),));
+            for x in points_x {
+                let points: Vec<Pos2> = vec![
+                    Pos2::new(x as f32, outer_rect.left_bottom().y),
+                    Pos2::new(x as f32, outer_rect.left_bottom().y - 10.0),
+                ];
+                ui.painter()
+                    .add(Shape::line(points, Stroke::new(1.0, self.border_color)));
             }
 
             if let Some(text_kind) = text {
                 let text = match text_kind {
                     DBMeterText::Custom(text) => text,
-                    DBMeterText::Percentage => {
-                        format!("{}%", (level * 100.0) as usize).into()
-                    }
+                    DBMeterText::Percentage => format!("{}%", (level * 100.0) as usize).into(),
                 };
                 let galley = text.into_galley(ui, Some(false), f32::INFINITY, TextStyle::Button);
-                let text_pos = outer_rect.left_center() - Vec2::new(0.0, galley.size().y / 2.0)
-                    + vec2(ui.spacing().item_spacing.x, 0.0);
-                let text_color = visuals
-                    .override_text_color
-                    .unwrap_or(self.border_color);
-                galley.paint_with_fallback_color(
-                    &ui.painter().with_clip_rect(outer_rect),
+                let text_pos = outer_rect.left_center() + vec2(ui.spacing().item_spacing.x, 0.0);
+                let text_color = visuals.override_text_color.unwrap_or(self.border_color);
+                let temp: String = (galley.text()).to_string();
+                ui.painter().text(
                     text_pos,
+                    Align2::LEFT_CENTER,
+                    temp,
+                    FontId::monospace(11.0),
                     text_color,
                 );
             }

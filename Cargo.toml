@@ -15,19 +15,12 @@ crate-type = ["cdylib","lib"]
 
 [dependencies]
 atomic_float = "0.1"
-# Remove the `assert_process_allocs` feature to allow allocations on the audio
-# thread in debug builds.
+lazy_static = "1.5.0"
 
-# Uncomment the below line to disable the on-by-default VST3 feature to remove
-# the GPL compatibility requirement
-#nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", default_features = false, features = ["assert_process_allocs", "standalone"] }
-
-
-nih_plug = { path = "../nih-plug-e59dc33aaf0c06c834dba0821f6e269e6377f362", features = ["assert_process_allocs"]}
-nih_plug_egui = { path = "../nih-plug-e59dc33aaf0c06c834dba0821f6e269e6377f362/nih_plug_egui" }
+# Nih plug update
+nih_plug = { git = "https://github.com/ardura/nih-plug.git", rev = "cd1c66b054a8ff7d44084369b7022a0272ac690e", features = ["assert_process_allocs"] }
+nih_plug_egui = { git = "https://github.com/ardura/nih-plug.git", rev = "cd1c66b054a8ff7d44084369b7022a0272ac690e" }
 once_cell = "1.18.0"
-win_dbg_logger = "0.1.0"
-
 
 [profile.release]
 lto = "thin"
